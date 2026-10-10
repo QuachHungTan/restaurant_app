@@ -1,0 +1,24 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: restaurant_db_bm
+    environment:
+      MYSQL_ROOT_PASSWORD: '123456'
+      MYSQL_DATABASE: 'restaurant'
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data_mysql:/var/lib/mysql
+
+  web:
+    build: ..
+    container_name: web_app_bm
+    ports:
+      # Ánh xạ ra 0.0.0.0 để thiết bị trong mạng LAN truy cập được
+      - "0.0.0.0:3000:3000"
+    environment:
+      DB_HOST: db
+    volumes:
+      - ../public:/usr/src/app/public
+    depends_on:
+      - db
