@@ -1,53 +1,58 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
 const db = require('../config/db');
-const loginView = require('../views/login');
+const renderLoginPage = require('../views/login');
 
-// Trang Dang Nhap
+// GET /auth/login
 router.get('/login', (req, res) => {
-  if (req.session.user) {
-    if (req.session.user.role === 'Admin') return res.redirect('/admin');
-    if (req.session.user.role === 'Bep') return res.redirect('/bep');
-    return res.redirect('/boiban');
-  }
-  res.send(loginView());
+  res.send(renderLoginPage());
 });
 
-// API Dang Nhap
-router.post('/api/login', async (req, res) => {
-  const { Name, Pass } = req.body;
-  try {
-    const [rows] = await db.query('SELECT * FROM Account WHERE LOWER(Name) = LOWER(?)', [Name]);
-    if (rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Tai khoan khong ton tai!' });
+// POST /auth/login
+router.post('/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.send(renderLoginPage('Vui lòng nhập đầy đủ tài khoản và mật khẩu!'));
+  }
+
+  // Tìm tài khoản theo Name
+  db.query('SELECT * FROM Account WHERE Name = ?', [username.trim()], async (err, results) => {
+    if (err || results.length === 0) {
+      return res.send(renderLoginPage('Tài khoản hoặc mật khẩu không chính xác!'));
     }
 
-    const user = rows[0];
-    if (Pass !== user.Pass) {
-      return res.status(401).json({ success: false, message: 'Mat khau khong chinh xac!' });
+    const user = results[0];
+
+    // Chỉ cần 1 dòng duy nhất để kiểm tra mật khẩu băm Bcrypt
+    const isMatch = await bcrypt.compare(password.trim(), user.Pass);
+
+    if (!isMatch) {
+      return res.send(renderLoginPage('Tài khoản hoặc mật khẩu không chính xác!'));
     }
 
+    // Đăng nhập thành công -> Lưu Session
     req.session.user = {
-      id: user.id,
-      name: user.Name,
-      role: user.ChucVu,
-      level: user.Level
+      id: user.ID || user.id,
+      Username: user.Name,
+      Role: user.ChucVu
     };
 
-    let redirectUrl = '/boiban';
-    if (user.ChucVu === 'Admin') redirectUrl = '/admin';
-    else if (user.ChucVu === 'Bep') redirectUrl = '/bep';
+    // Chuyển hướng theo vai trò
+    const role = (user.ChucVu || '').toLowerCase();
+    if (role === 'admin') return res.redirect('/admin');
+    if (role === 'bep') return res.redirect('/bep');
+    if (role === 'boiban') return res.redirect('/boiban');
 
-    res.json({ success: true, redirectUrl });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Loi CSDL!' });
-  }
+    res.redirect('/auth/login');
+  });
 });
 
-// Dang Xuat
+// GET /auth/logout
 router.get('/logout', (req, res) => {
   req.session.destroy(() => {
-    res.redirect('/login');
+    res.redirect('/auth/login');
   });
 });
 

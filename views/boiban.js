@@ -1,269 +1,238 @@
-module.exports = function boiBanView(user, categories, menu, myOrders) {
-  // Tạo thanh danh mục Tabs
-  let categoryTabs = `<button class="category-btn active" onclick="filterCategory('all', this)"><i class="fa-solid fa-layer-group"></i> Tất cả</button>`;
-  categoryTabs += categories.map(cat => `<button class="category-btn" onclick="filterCategory('${cat.ID}', this)"><i class="fa-solid fa-utensils"></i> ${cat.Name}</button>`).join('');
+function renderBoiBanPage(user, dishes = [], categories = [], selectedCategory = '') {
+  const categoryTabs = categories.map(c => `
+    <a href="/boiban?category=${c.ID}" class="category-btn ${selectedCategory == c.ID ? 'active' : ''}">
+      🏷️ ${c.Name}
+    </a>
+  `).join('');
 
-  // Tạo danh sách thẻ món ăn (Food Cards)
-  let foods = menu.map(item => `
-    <div class="food-card" data-category-id="${item.Category_ID}">
-      <div class="food-icon">
-        <img src="/images/${item.Image}" alt="${item.Name}" onerror="this.onerror=null;this.parentElement.innerHTML='<i class=\\'fa-solid fa-bowl-food placeholder-icon\\'></i>';">
-      </div>
-      <div class="food-info">
-        <h3>${item.Name}</h3>
-        <p class="category"><i class="fa-solid fa-tag"></i> ${item.CategoryName}</p>
-        <p class="price">${Number(item.Price).toLocaleString('en-US')} VND</p>
-        <button class="add-btn" data-id="${item.ID}" data-name="${item.Name.replace(/"/g, '&quot;')}" data-price="${item.Price}" onclick="handleAddToCart(this)">
-          <i class="fa-solid fa-cart-plus"></i> Thêm vào giỏ
+  const dishCards = dishes.map(d => `
+    <div class="dish-card">
+      <div class="dish-icon">🍜</div>
+      <div class="dish-info">
+        <h3 class="dish-title">${d.Name}</h3>
+        <span class="dish-category">🏷️ ${d.CategoryName || 'Món ăn'}</span>
+        <div class="dish-price">${Number(d.Price).toLocaleString('vi-VN')} VND</div>
+        <button type="button" class="btn-add-dish" onclick="addDishToSummary(${d.ID}, '${d.Name.replace(/'/g, "\\'")}', ${d.Price})">
+           Gọi món
         </button>
       </div>
     </div>
   `).join('');
 
-  // Tạo lịch sử order cá nhân
-  let historyRows = myOrders.map(o => `
-    <tr>
-      <td><b>#${o.ID}</b></td>
-      <td><b style="color:#d32f2f;">${o.SoBan}</b></td>
-      <td>${o.DanhSachMon}</td>
-      <td><b>${Number(o.TongTien).toLocaleString('en-US')} VND</b></td>
-      <td>
-        <span class="status-badge ${o.TrangThai === 1 ? 'status-done' : 'status-pending'}">
-          ${o.TrangThai === 1 ? '✓ Bếp xong' : '⌛ Đang làm'}
-        </span>
-      </td>
-    </tr>
-  `).join('');
+  return `
+  <!DOCTYPE html>
+  <html lang="vi">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RESTAURANT - Đặt Món Trực Tuyến</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+      body { background-color: #f4f6f8; color: #333; }
+      
+      .app-header { background: #d32f2f; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+      .brand { display: flex; align-items: center; gap: 10px; }
+      .brand-icon { font-size: 28px; }
+      .brand-title { font-size: 20px; font-weight: bold; letter-spacing: 1px; }
+      .brand-sub { font-size: 11px; opacity: 0.9; }
+      
+      .cart-badge { background: #b71c1c; padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 14px; border: 1px solid rgba(255,255,255,0.2); }
+      .cart-count { background: #fff; color: #d32f2f; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
 
-  return `<!DOCTYPE html>
-<html lang="vi">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bồi Bàn - POS Restaurant</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>
-* { box-sizing: border-box; }
-body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #333; }
+      .main-layout { display: flex; gap: 20px; max-width: 1300px; margin: 20px auto; padding: 0 15px; }
+      .menu-section { flex: 1; }
+      .summary-section { width: 380px; }
 
-/* Header sang trọng */
-.header { background: linear-gradient(135deg, #d32f2f, #b71c1c); color: white; padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.header-brand { display: flex; align-items: center; gap: 12px; }
-.header-brand i { font-size: 28px; }
-.header h1 { margin: 0; font-size: 22px; font-weight: 700; }
-.header p { margin: 2px 0 0; opacity: 0.85; font-size: 12px; }
-.header-right { display: flex; align-items: center; gap: 15px; }
-.user-profile { background: rgba(255, 255, 255, 0.15); padding: 6px 14px; border-radius: 20px; display: flex; align-items: center; gap: 10px; }
-.user-role-badge { background: #ffeb3b; color: #b71c1c; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
-.btn-logout { background: #ffffff; color: #d32f2f; border: none; padding: 6px 12px; border-radius: 15px; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 12px; }
-.cart-badge { background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+      .category-bar { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; }
+      .category-btn { background: white; color: #555; text-decoration: none; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; white-space: nowrap; border: 1px solid #e0e0e0; transition: all 0.2s; }
+      .category-btn.active, .category-btn:hover { background: #d32f2f; color: white; border-color: #d32f2f; }
 
-/* Category Navigation Tabs */
-.category-nav-wrapper { background: #ffffff; border-bottom: 1px solid #e0e0e0; position: sticky; top: 62px; z-index: 90; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-.category-nav { max-width: 1300px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 10px; overflow-x: auto; }
-.category-btn { background: #f1f3f5; border: none; padding: 8px 18px; border-radius: 20px; color: #495057; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: 0.2s; }
-.category-btn.active, .category-btn:hover { background: #d32f2f; color: white; }
+      .section-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
 
-/* Container Bố cục */
-.container { display: flex; gap: 25px; max-width: 1300px; margin: 25px auto; padding: 0 20px; }
-.menu-section { flex: 1; }
-.food-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+      .dish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+      .dish-card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); text-align: center; border: 1px solid #eee; display: flex; flex-direction: column; align-items: center; }
+      .dish-icon { font-size: 45px; background: #fff5f5; width: 80px; height: 80px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+      .dish-title { font-size: 16px; font-weight: bold; color: #222; margin-bottom: 4px; }
+      .dish-category { font-size: 12px; color: #888; display: block; margin-bottom: 8px; }
+      .dish-price { font-size: 16px; font-weight: bold; color: #d32f2f; margin-bottom: 12px; }
+      .btn-add-dish { background: #d32f2f; color: white; border: none; width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+      .btn-add-dish:hover { background: #b71c1c; }
 
-/* Food Card */
-.food-card { background: white; border-radius: 14px; padding: 16px; display: flex; gap: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #eee; }
-.food-icon { width: 100px; height: 100px; background: #fff5f5; border-radius: 10px; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.food-icon img { width: 100%; height: 100%; object-fit: cover; }
-.placeholder-icon { font-size: 40px; color: #d32f2f; }
-.food-info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-.food-info h3 { margin: 0 0 4px; font-size: 16px; font-weight: 700; color: #212529; }
-.category { color: #868e96; margin: 0; font-size: 12px; }
-.price { color: #d32f2f; font-size: 16px; font-weight: 700; margin: 6px 0; }
-.add-btn { background: #d32f2f; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; width: fit-content; }
-.add-btn:hover { background: #b71c1c; }
+      .summary-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: sticky; top: 20px; border: 1px solid #eaeaea; }
+      .summary-header { border-bottom: 2px solid #f4f6f8; padding-bottom: 12px; margin-bottom: 15px; }
+      
+      .table-select-group { margin-bottom: 15px; }
+      .table-select-group label { display: block; font-size: 13px; font-weight: bold; color: #555; margin-bottom: 5px; }
+      .table-select-group select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-weight: bold; font-size: 14px; }
 
-/* Giỏ hàng POS bên phải */
-.cart-section { width: 380px; background: white; border-radius: 14px; padding: 20px; height: fit-content; position: sticky; top: 130px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #eee; }
-.cart-section h2 { margin-top: 0; font-size: 18px; color: #212529; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; }
-.form-group { margin-bottom: 15px; }
-.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
-.form-control { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 8px; outline: none; }
-.cart-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #eee; padding: 10px 0; font-size: 14px; }
-.cart-item-qty { background: #f1f3f5; padding: 2px 8px; border-radius: 6px; font-weight: bold; margin-left: 5px; }
-.total { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-top: 20px; padding-top: 10px; border-top: 2px solid #f1f3f5; }
-.order-btn { width: 100%; margin-top: 18px; padding: 14px; background: #2e7d32; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-.order-btn:hover { background: #1b5e20; }
-.empty { text-align: center; color: #adb5bd; padding: 30px 0; }
+      .summary-list { max-height: 280px; overflow-y: auto; margin-bottom: 15px; padding-right: 5px; }
+      .summary-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #eee; }
+      .item-name { font-weight: bold; font-size: 14px; }
+      .item-price { font-size: 12px; color: #888; }
+      
+      .qty-control { display: flex; align-items: center; gap: 8px; }
+      .btn-qty { background: #f0f0f0; border: none; width: 24px; height: 24px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+      .btn-qty:hover { background: #e0e0e0; }
 
-/* Lịch sử đơn hàng */
-.history-section { max-width: 1300px; margin: 30px auto; padding: 0 20px; }
-.history-card { background: white; border-radius: 14px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
-th { background: #f8f9fa; color: #495057; font-weight: 700; }
-.status-badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight:bold; }
-.status-pending { background: #fff3e0; color: #e65100; }
-.status-done { background: #e8f5e9; color: #2e7d32; }
-</style>
-</head>
-<body>
+      .total-box { border-top: 2px solid #eee; padding-top: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; }
+      .total-price { color: #d32f2f; font-size: 18px; }
 
-<!-- Header -->
-<div class="header">
-  <div class="header-brand">
-    <i class="fa-solid fa-utensils"></i>
-    <div>
-      <h1>RESTAURANT POS</h1>
-      <p>Hệ Thống Phục Vụ & Đặt Món</p>
-    </div>
-  </div>
+      .btn-submit-order { background: #2e7d32; color: white; border: none; width: 100%; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+      .btn-submit-order:hover { background: #1b5e20; }
 
-  <div class="header-right">
-    <div class="user-profile">
-      <i class="fa-solid fa-user-circle" style="font-size: 22px;"></i>
-      <div>
-        <span style="font-weight: bold;">${user.name}</span>
-        <span class="user-role-badge">${user.role}</span>
-      </div>
-      <a href="/logout" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Thoát</a>
-    </div>
-
-    <div class="cart-badge">
-      <i class="fa-solid fa-cart-shopping"></i> Giỏ: <span id="cartCount">0</span>
-    </div>
-  </div>
-</div>
-
-<!-- Thanh Danh Mục Categories -->
-<div class="category-nav-wrapper">
-  <div class="category-nav">${categoryTabs}</div>
-</div>
-
-<!-- Thực Đơn & Giỏ Hàng -->
-<div class="container">
-  <div class="menu-section">
-    <h2 style="margin-top: 0;"><i class="fa-solid fa-book-open"></i> Thực Đơn Nhà Hàng</h2>
-    <div class="food-list" id="foodList">${foods}</div>
-  </div>
-
-  <div class="cart-section">
-    <h2><i class="fa-solid fa-receipt"></i> Đơn Hàng Cần Đặt</h2>
-    <div class="form-group">
-      <label><i class="fa-solid fa-chair"></i> Chọn Bàn Phục Vụ:</label>
-      <select id="tableNumber" class="form-control">
-        <option value="">-- Chọn Bàn --</option>
-        <option value="Bàn 01">Bàn 01</option>
-        <option value="Bàn 02">Bàn 02</option>
-        <option value="Bàn 03">Bàn 03</option>
-        <option value="Bàn VIP 01">Bàn VIP 01</option>
-        <option value="Bàn VIP 02">Bàn VIP 02</option>
-      </select>
-    </div>
-
-    <div id="cartItems"><div class="empty">Chưa có món ăn nào trong giỏ</div></div>
-    <div class="total"><span>Tổng cộng:</span><span style="color:#d32f2f" id="totalPrice">0 VND</span></div>
-    <button class="order-btn" onclick="orderFood()"><i class="fa-solid fa-paper-plane"></i> GỬI ĐƠN CHO BẾP</button>
-  </div>
-</div>
-
-<!-- Lịch Sử Order Cá Nhân -->
-<div class="history-section">
-  <div class="history-card">
-    <h3 style="margin-top:0;"><i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử Đặt Món Của Tôi (${user.name})</h3>
-    <table>
-      <thead>
-        <tr><th>Mã Đơn</th><th>Số Bàn</th><th>Danh Sách Món</th><th>Tổng Tiền</th><th>Trạng Thái Bếp</th></tr>
-      </thead>
-      <tbody>
-        ${historyRows.length > 0 ? historyRows : '<tr><td colspan="5" style="text-align:center; color:#888;">Chưa có đơn hàng nào do bạn đặt</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<script>
-let cart = [];
-
-// Lọc món ăn theo Danh mục
-function filterCategory(catId, btn) {
-  document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.food-card').forEach(card => {
-    card.style.display = (catId === 'all' || card.dataset.categoryId === String(catId)) ? 'flex' : 'none';
-  });
-}
-
-// Thêm vào giỏ
-function handleAddToCart(btn) {
-  const food = { id: btn.dataset.id, name: btn.dataset.name, price: Number(btn.dataset.price) };
-  const exist = cart.find(i => i.id === food.id);
-  if (exist) exist.quantity++; else cart.push({ ...food, quantity: 1 });
-  updateCart();
-}
-
-// Cập nhật giao diện Giỏ hàng
-function updateCart() {
-  const cartItems = document.getElementById('cartItems');
-  if (cart.length === 0) {
-    cartItems.innerHTML = '<div class="empty">Chưa có món ăn nào trong giỏ</div>';
-    document.getElementById('cartCount').innerText = 0;
-    document.getElementById('totalPrice').innerText = '0 VND';
-    return;
-  }
-  let total = 0, count = 0, html = '';
-  cart.forEach(item => {
-    total += item.price * item.quantity;
-    count += item.quantity;
-    html += \`
-      <div class="cart-item">
-        <div><b>\${item.name}</b><br><span style="color:#d32f2f;">\${item.price.toLocaleString('en-US')} VND</span> x \${item.quantity}</div>
+      .user-link { color: white; text-decoration: none; font-size: 12px; background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">🍴</span>
         <div>
-          <button onclick="changeQty('\${item.id}', -1)" style="padding:2px 8px; cursor:pointer;">-</button>
-          <span class="cart-item-qty">\${item.quantity}</span>
-          <button onclick="changeQty('\${item.id}', 1)" style="padding:2px 8px; cursor:pointer;">+</button>
+          <div class="brand-title">RESTAURANT</div>
+          <div class="brand-sub">Thực Đơn & Đặt Món Trực Tuyến</div>
         </div>
       </div>
-    \`;
-  });
-  cartItems.innerHTML = html;
-  document.getElementById('cartCount').innerText = count;
-  document.getElementById('totalPrice').innerText = total.toLocaleString('en-US') + ' VND';
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <div class="cart-badge">
+          Món đã thêm: <span class="cart-count" id="cart-count">0</span>
+        </div>
+        <div style="text-align: right; font-size: 13px;">
+          NV: <strong>${user.Username}</strong> <br>
+          <a href="/auth/logout" class="user-link">Thoát</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <div class="menu-section">
+        <div class="category-bar">
+          <a href="/boiban" class="category-btn ${!selectedCategory ? 'active' : ''}">🏷️ Tất cả</a>
+          ${categoryTabs}
+        </div>
+
+        <div class="section-title">Danh Sách Món Ăn</div>
+
+        <div class="dish-grid">
+          ${dishCards || '<p style="grid-column: 1/-1; text-align:center; padding: 20px;">Không có món ăn nào trong danh mục này.</p>'}
+        </div>
+      </div>
+
+      <div class="summary-section">
+        <div class="summary-card">
+          <div class="summary-header">
+            <h3 style="font-size: 16px; color: #d32f2f;">Món Đã Chọn</h3>
+          </div>
+
+          <form action="/boiban/order" method="POST" id="orderForm">
+            <div class="table-select-group">
+              <label>Chọn Số Bàn Đặt Món:</label>
+              <select name="SoBan" required>
+                <option value="Bàn 1">Bàn 01</option>
+                <option value="Bàn 2">Bàn 02</option>
+                <option value="Bàn 3">Bàn 03</option>
+                <option value="Bàn 4">Bàn 04</option>
+                <option value="Bàn 5">Bàn 05</option>
+              </select>
+            </div>
+
+            <div class="summary-list" id="summary-list">
+              <p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0;">
+                Chưa có món nào được chọn. Hãy bấm "Gọi món" bên danh sách!
+              </p>
+            </div>
+
+            <div class="total-box">
+              <span>Tổng Tiền:</span>
+              <span class="total-price" id="total-price">0 VND</span>
+            </div>
+
+            <!-- Dữ liệu ẩn đồng bộ ID cart_data_input -->
+            <input type="hidden" name="cart_data" id="cart_data_input">
+
+            <button type="submit" class="btn-submit-order" id="btn-submit" disabled>
+              Xác Nhận
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let selectedDishes = {};
+
+      function addDishToSummary(id, name, price) {
+        if (selectedDishes[id]) {
+          selectedDishes[id].qty += 1;
+        } else {
+          selectedDishes[id] = { id, name, price, qty: 1 };
+        }
+        renderSummary();
+      }
+
+      function updateQty(id, delta) {
+        if (selectedDishes[id]) {
+          selectedDishes[id].qty += delta;
+          if (selectedDishes[id].qty <= 0) {
+            delete selectedDishes[id];
+          }
+        }
+        renderSummary();
+      }
+
+      function renderSummary() {
+        const summaryList = document.getElementById('summary-list');
+        const totalPriceEl = document.getElementById('total-price');
+        const cartCountEl = document.getElementById('cart-count');
+        const submitBtn = document.getElementById('btn-submit');
+        const cartDataInput = document.getElementById('cart_data_input');
+
+        summaryList.innerHTML = '';
+
+        let total = 0;
+        let count = 0;
+        const keys = Object.keys(selectedDishes);
+
+        if (keys.length === 0) {
+          summaryList.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0;">Chưa có món nào được chọn. Hãy bấm "Gọi món"!</p>';
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.5';
+          cartDataInput.value = '';
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+
+          keys.forEach(key => {
+            const item = selectedDishes[key];
+            const itemTotal = item.price * item.qty;
+            total += itemTotal;
+            count += item.qty;
+
+            const itemEl = document.createElement('div');
+            itemEl.className = 'summary-item';
+            itemEl.innerHTML = \`
+              <div>
+                <div class="item-name">\${item.name}</div>
+                <div class="item-price">\${Number(item.price).toLocaleString('vi-VN')} VND</div>
+              </div>
+              <div class="qty-control">
+                <button type="button" class="btn-qty" onclick="updateQty(\${item.id}, -1)">-</button>
+                <span style="font-weight: bold; font-size: 14px;">\${item.qty}</span>
+                <button type="button" class="btn-qty" onclick="updateQty(\${item.id}, 1)">+</button>
+              </div>
+            \`;
+            summaryList.appendChild(itemEl);
+          });
+
+          cartDataInput.value = JSON.stringify(Object.values(selectedDishes));
+        }
+
+        totalPriceEl.innerText = Number(total).toLocaleString('vi-VN') + ' VND';
+        cartCountEl.innerText = count;
+      }
+    </script>
+  </body>
+  </html>
+  `;
 }
 
-function changeQty(id, delta) {
-  const item = cart.find(i => i.id === id);
-  if (item) {
-    item.quantity += delta;
-    if (item.quantity <= 0) cart = cart.filter(i => i.id !== id);
-    updateCart();
-  }
-}
-
-// Gửi Đơn Hàng đến Bếp
-async function orderFood() {
-  const tableNumber = document.getElementById('tableNumber').value;
-  if (!tableNumber) return alert('Vui lòng chọn số bàn!');
-  if (cart.length === 0) return alert('Vui lòng chọn ít nhất 1 món ăn!');
-
-  try {
-    const res = await fetch('/api/boiban/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tableNumber, cart })
-    });
-    const data = await res.json();
-    if (data.success) {
-      alert('ĐẶT MÓN THÀNH CÔNG! Đơn hàng đã được chuyển tới Bếp.');
-      cart = [];
-      updateCart();
-      location.reload();
-    } else {
-      alert(data.message);
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ!');
-  }
-}
-</script>
-</body>
-</html>`;
-};
+module.exports = renderBoiBanPage;
