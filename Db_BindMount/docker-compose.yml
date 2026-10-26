@@ -14,7 +14,6 @@ services:
     build: ..
     container_name: web_app_bm
     ports:
-      # Ánh xạ ra 0.0.0.0 để thiết bị trong mạng LAN truy cập được
       - "0.0.0.0:3000:3000"
     environment:
       DB_HOST: db
